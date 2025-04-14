@@ -64,7 +64,7 @@ def detect_stars(image_data):
     # Configure star finder
     # The FWHM (full width at half maximum) parameter should be adjusted based on your seeing conditions
     # The threshold parameter determines how many sigma above background a peak must be
-    daofind = DAOStarFinder(fwhm=3.0, threshold=5. * std)
+    daofind = DAOStarFinder(fwhm=2.0, threshold=5. * std)
 
     # Find stars
     sources = daofind(image_data - median)
