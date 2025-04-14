@@ -15,3 +15,12 @@ then run something like:
 ```bash
 python .\src\get_coordinates_astrometry_net.py --wcs .\data\wcs.fits --fits .\data\new-image.fits --image-radec .\data\image-radec.fits --axy .\data\axy.fits --output .\data\test_astrometry.csv -v --viz-output .\data\test_astrometry.png -d
 ```
+
+Then you can make a GIF with something like:
+```bash
+python .\src\make_gif_claude.py .\data\test_astrometry.csv -i .\data\pinwheel_temp-HaRGB_2-csc-crop-St.tiff -s .\data\pinwheel_temp-HaRGB_2-csc-crop-St-Starless.tiff -o .\data\test_astrometry.gif --debug --save-stars .\data\test_astrometry_stars.png
+```
+or
+```bash
+ python .\src\make_gif_claude.py data/test_astrometry.csv -i data/pinwheel_temp-HaRGB_2-csc-crop-St.tiff -s data/pinwheel_temp-HaRGB_2-csc-crop-St-Starless.tiff -o data/test_astrometry.gif --parallax-mode power --power 3.0 --contrast 2.5
+```
