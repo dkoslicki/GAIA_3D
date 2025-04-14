@@ -266,7 +266,7 @@ def query_gaia_for_region(center_coord, radius=0.5):
         return None
 
 
-def match_stars(detected_sources, wcs, gaia_table, max_separation=5.0):
+def match_stars(detected_sources, wcs, gaia_table, max_separation=15.0):
     """
     Match detected stars with Gaia catalog entries
 
@@ -290,13 +290,16 @@ def match_stars(detected_sources, wcs, gaia_table, max_separation=5.0):
     x_coords = detected_sources['xcentroid']
     y_coords = detected_sources['ycentroid']
 
-    # Convert to RA/Dec
-    sky_coords = wcs.pixel_to_world(x_coords, y_coords)
+    # Convert to RA/Dec using pixel_to_world_values to obtain numeric arrays
+    ra, dec = wcs.pixel_to_world_values(x_coords, y_coords)
 
-    # Create SkyCoord objects for Gaia stars
-    gaia_coords = SkyCoord(ra=gaia_table['RAJ2000'] * u.degree, dec=gaia_table['DEJ2000'] * u.degree)
+    # Create a SkyCoord object from the numeric RA/Dec values
+    sky_coords = SkyCoord(ra=ra * u.deg, dec=dec * u.deg, frame='icrs')
 
-    # Find the closest Gaia star for each detected star
+    # Create SkyCoord objects for Gaia stars (ensure units are properly set)
+    gaia_coords = SkyCoord(ra=gaia_table['RAJ2000'], dec=gaia_table['DEJ2000'], unit='deg', frame='icrs')
+
+    # Now you can match the catalogs
     idx, d2d, _ = sky_coords.match_to_catalog_sky(gaia_coords)
 
     # Filter to only include matches within the separation limit
@@ -315,8 +318,8 @@ def match_stars(detected_sources, wcs, gaia_table, max_separation=5.0):
         parallax_mas = gaia_table['Plx'][gaia_idx]  # Parallax in milliarcseconds
 
         # Skip stars with negative, zero, or very small parallax
-        if parallax_mas <= 0.1:  # Added threshold to avoid unrealistic distances
-            continue
+        #if parallax_mas <= 0.1:  # Added threshold to avoid unrealistic distances
+        #    continue
 
         # Convert parallax to distance in light years
         # 1 parsec = 3.26156 light years, parallax in mas = 1000/distance in parsecs
@@ -324,8 +327,8 @@ def match_stars(detected_sources, wcs, gaia_table, max_separation=5.0):
         distance_ly = distance_pc * 3.26156
 
         # Skip unrealistically large distances (e.g., over 100,000 light years)
-        if distance_ly > 100000:
-            continue
+        #if distance_ly > 100000:
+        #    continue
 
         # Add to results
         results.append((x_coords[i], y_coords[i], distance_ly))
@@ -401,6 +404,7 @@ def process_fits_file(fits_path, astap_path=None):
         center_x = image_data.shape[1] / 2
         center_y = image_data.shape[0] / 2
         center_coord = wcs.pixel_to_world(center_x, center_y)
+        center_coord = SkyCoord(ra=center_coord[0], dec=center_coord[1], frame="icrs")
 
         # Ensure center_coord is a proper SkyCoord object
         if not isinstance(center_coord, SkyCoord):
@@ -424,11 +428,23 @@ def process_fits_file(fits_path, astap_path=None):
         # Estimate the field of view
         try:
             # Try to calculate the diagonal field of view in degrees
-            corner1 = wcs.pixel_to_world(0, 0)
-            corner2 = wcs.pixel_to_world(image_data.shape[1] - 1, image_data.shape[0] - 1)
+            #corner1 = wcs.pixel_to_world(0, 0)
+            #corner2 = wcs.pixel_to_world(image_data.shape[1] - 1, image_data.shape[0] - 1)
+            #radius = corner1.separation(corner2).degree / 2
+            # Get the numeric RA and Dec values using pixel_to_world_values
+            ra1, dec1 = wcs.pixel_to_world_values(0, 0)
+            ra2, dec2 = wcs.pixel_to_world_values(image_data.shape[1] - 1, image_data.shape[0] - 1)
+
+            # Create SkyCoord objects from these values
+            corner1 = SkyCoord(ra=ra1 * u.deg, dec=dec1 * u.deg, frame='icrs')
+            corner2 = SkyCoord(ra=ra2 * u.deg, dec=dec2 * u.deg, frame='icrs')
+
+            # Now you can compute the separation
+            #radius = corner1.separation(corner2).degree / 2
             radius = corner1.separation(corner2).degree / 2
+
             # Add some margin
-            radius = min(radius * 1.2, 1.0)  # Cap at 1 degree to avoid excessive query size
+            #radius = min(radius * 1.2, 1.0)  # Cap at 1 degree to avoid excessive query size
         except Exception as e:
             # Default radius
             logger.warning(f"Error calculating field of view: {e}, using default radius")
@@ -519,7 +535,7 @@ def generate_distance_visualization(fits_path, results_df, output_path=None):
             c=results_df['distance_ly'],
             cmap='viridis',
             s=50,
-            alpha=0.7,
+            alpha=0.5,
             edgecolor='white',
             norm=LogNorm()
         )
