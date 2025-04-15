@@ -1,0 +1,9 @@
+numpy
+pillow
+tqdm
+pandas
+scipy
+scikit-image
+astropy
+astroquery
+photutils

@@ -1,5 +1,30 @@
 # GAIA_3D
-3D visualization of GAIA paralax data
+3D visualization of GAIA parallax data
+
+# Installation
+Use the requirements.txt file to install the required packages. You can do this with:
+```bash
+pip install -r requirements.txt
+```
+Otherwise, you can use conda:
+```bash
+conda create -n myenv python=3.9 \
+    numpy \
+    pillow \
+    tqdm \
+    pandas \
+    scipy \
+    scikit-image \
+    astropy \
+    astroquery \
+    photutils \
+    -c conda-forge
+conda activate myenv
+```
+1. Replace myenv with your desired environment name.
+2. Activate the environment with conda activate myenv.
+3. (Windows only) [Install gifsicle manually](https://eternallybored.org/misc/gifsicle/).
+4. (Linux/macOS) Optionally install gifsicle via your system package manager or use `conda install gifsicle -c conda-forge`.
 
 # How to run
 After installation of required packages, you will need to:
