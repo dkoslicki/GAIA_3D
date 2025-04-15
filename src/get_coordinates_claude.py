@@ -65,7 +65,8 @@ def detect_stars(image_data):
     # Configure star finder
     # The FWHM (full width at half maximum) parameter should be adjusted based on your seeing conditions
     # The threshold parameter determines how many sigma above background a peak must be
-    daofind = DAOStarFinder(fwhm=2.0, threshold=5. * std)
+    daofind = DAOStarFinder(fwhm=7.0, threshold=5. * std)  # TODO: Adjust fwhm and threshold as needed. Might make
+    # them parameters of the function later
 
     # Find stars
     sources = daofind(image_data - median)
@@ -267,7 +268,7 @@ def query_gaia_for_region(center_coord, radius=0.5):
         return None
 
 
-def match_stars(detected_sources, wcs, gaia_table, max_separation=15.0):
+def match_stars(detected_sources, wcs, gaia_table, max_separation=25.0):
     """
     Match detected stars with Gaia catalog entries
 

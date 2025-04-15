@@ -668,6 +668,105 @@ def create_shifted_star_image_log_scaling(stars_image, star_regions, offset_fact
     return shifted_stars
 
 
+def create_shifted_star_image_enhanced(stars_image, star_regions, offset_factor, direction, width, height,
+                                       threshold_percentile=75, enhancement_factor=2.0):
+    """
+    Create a new image with stars shifted according to enhanced parallax algorithm
+
+    Parameters:
+    -----------
+    stars_image : numpy.ndarray
+        Original stars-only image data
+    star_regions : dict
+        Mapping from region labels to star data
+    offset_factor : float
+        Base offset factor (will be scaled by parallax)
+    direction : str
+        Direction of parallax motion ('horizontal', 'vertical', or 'both')
+    width : int
+        Width of the output image
+    height : int
+        Height of the output image
+    threshold_percentile : float, optional
+        Percentile value (0-100) for distance threshold calculation
+    enhancement_factor : float, optional
+        Factor to enhance the movement of closer stars
+
+    Returns:
+    --------
+    numpy.ndarray
+        New image with shifted stars
+    """
+    # Create output array same shape as input
+    shifted_stars = np.zeros_like(stars_image)
+
+    # Collect all valid distances
+    distances = np.array([r['star_data']['distance_ly'] for r in star_regions.values()
+                          if 'star_data' in r and 'distance_ly' in r['star_data']])
+
+    if len(distances) == 0:
+        logger.warning("No valid distances found for star regions")
+        return shifted_stars
+
+    # Calculate distance threshold using percentile
+    distance_threshold = np.percentile(distances, threshold_percentile)
+    logger.info(f"Using distance threshold of {distance_threshold:.1f} light years "
+                f"({threshold_percentile}th percentile)")
+
+    # Normalize distances for stars below threshold
+    foreground_distances = distances[distances <= distance_threshold]
+    if len(foreground_distances) > 0:
+        min_distance = np.min(foreground_distances)
+
+        # For each star region, apply shift based on distance
+        for label, region in star_regions.items():
+            if 'star_data' not in region or 'distance_ly' not in region['star_data']:
+                continue
+
+            # Get distance
+            distance = region['star_data']['distance_ly']
+
+            # Calculate parallax factor - only for stars within threshold
+            if distance <= distance_threshold:
+                # Normalized distance (0=closest, 1=threshold)
+                norm_distance = (distance - min_distance) / (distance_threshold - min_distance)
+
+                # Apply enhancement (stronger effect for closer stars)
+                # Using power function for non-linear scaling
+                parallax_factor = pow(1.0 - norm_distance, enhancement_factor)
+            else:
+                # No movement for stars beyond threshold
+                parallax_factor = 0
+
+            # Calculate pixel shifts
+            dx = offset_factor * parallax_factor if direction in ('horizontal', 'both') else 0
+            dy = offset_factor * parallax_factor * 0.3 if direction in ('vertical', 'both') else 0
+
+            # For each pixel in the region, shift it
+            for y, x in region['coords']:
+                # Calculate new position
+                new_x = int(round(x + dx))
+                new_y = int(round(y + dy))
+
+                # Check bounds
+                if 0 <= new_y < height and 0 <= new_x < width:
+                    # Copy star pixel to new position
+                    if len(stars_image.shape) == 3:
+                        shifted_stars[new_y, new_x] = stars_image[y, x]
+                    else:
+                        shifted_stars[new_y, new_x] = stars_image[y, x]
+
+    # Apply a slight blur to smooth the shifted stars
+    from scipy.ndimage import gaussian_filter
+    if len(shifted_stars.shape) == 3:
+        for c in range(shifted_stars.shape[2]):
+            shifted_stars[:, :, c] = gaussian_filter(shifted_stars[:, :, c], sigma=0.5)
+    else:
+        shifted_stars = gaussian_filter(shifted_stars, sigma=0.5)
+
+    return shifted_stars
+
+
 def create_parallax_frames(
         star_data,
         original_image,
@@ -1021,6 +1120,136 @@ def create_parallax_frames_old(
     return frames
 
 
+def create_parallax_frames_enhanced(
+        star_data,
+        original_image,
+        starless_image=None,
+        num_frames=30,
+        parallax_amplitude=10,
+        direction='horizontal',
+        blur_stars=True,
+        threshold_percentile=75,
+        enhancement_factor=2.0
+):
+    """
+    Create animation frames showing enhanced parallax effect
+
+    Parameters:
+    -----------
+    star_data : pandas.DataFrame
+        DataFrame with star positions and distances
+    original_image : numpy.ndarray
+        Original image with stars
+    starless_image : numpy.ndarray, optional
+        Starless version of the image (if available)
+    num_frames : int, optional
+        Number of frames to generate
+    parallax_amplitude : float, optional
+        Maximum pixel offset for closest stars
+    direction : str, optional
+        Direction of parallax motion ('horizontal', 'vertical', or 'both')
+    blur_stars : bool, optional
+        Whether to apply slight blur to stars for smoother animation
+    threshold_percentile : float, optional
+        Percentile value (0-100) for distance threshold calculation
+    enhancement_factor : float, optional
+        Factor to enhance the movement of closer stars
+
+    Returns:
+    --------
+    list
+        List of PIL.Image frames
+    """
+    height, width = original_image.shape[:2]
+    frames = []
+
+    # Extract stars if needed
+    if starless_image is not None:
+        # Extract stars by difference
+        stars_mask, stars_only = extract_stars(original_image, starless_image)
+        background = starless_image.copy()  # Make a copy to ensure we don't modify the original
+    else:
+        # Extract stars by threshold
+        stars_mask, stars_only = extract_stars(original_image)
+
+        # Create background by removing stars
+        background = original_image.copy()
+        if len(background.shape) == 3:
+            for c in range(background.shape[2]):
+                background[:, :, c] = np.where(stars_mask, 0, background[:, :, c])
+        else:
+            background = np.where(stars_mask, 0, background)
+
+    # Analyze star regions
+    star_regions = analyze_star_regions(stars_mask, star_data)
+
+    # Convert numpy arrays to PIL images for the final composition
+    # Always convert background to RGBA to ensure proper alpha compositing
+    if len(background.shape) == 3 and background.shape[2] == 4:
+        bg_pil = Image.fromarray(background.astype(np.uint8), 'RGBA')
+    elif len(background.shape) == 3:
+        bg_pil = Image.fromarray(background.astype(np.uint8), 'RGB').convert('RGBA')
+    else:
+        bg_pil = Image.fromarray(background.astype(np.uint8), 'L').convert('RGBA')
+
+    logger.info(f"Generating {num_frames} animation frames with enhanced parallax")
+    for frame_idx in tqdm(range(num_frames)):
+        # Calculate normalized offset (-1 to 1) using sine wave
+        t = frame_idx / num_frames
+        offset_norm = math.sin(2 * math.pi * t)
+
+        # Base offset for the closest star
+        offset = offset_norm * parallax_amplitude
+
+        # Create shifted star image with enhanced parallax
+        shifted_stars = create_shifted_star_image_enhanced(
+            stars_only, star_regions, offset, direction, width, height,
+            threshold_percentile=threshold_percentile,
+            enhancement_factor=enhancement_factor
+        )
+
+        # Create a transparent image for stars with alpha channel
+        stars_rgba = np.zeros((height, width, 4), dtype=np.uint8)
+
+        # Copy RGB channels from shifted stars
+        if len(shifted_stars.shape) == 3 and shifted_stars.shape[2] >= 3:
+            stars_rgba[:, :, :3] = shifted_stars[:, :, :3]
+        else:
+            # For grayscale, copy to all RGB channels
+            for c in range(3):
+                stars_rgba[:, :, c] = shifted_stars
+
+        # Create alpha channel - any non-zero pixel becomes fully opaque
+        if len(shifted_stars.shape) == 3 and shifted_stars.shape[2] == 4:
+            # Use existing alpha if available
+            stars_rgba[:, :, 3] = shifted_stars[:, :, 3]
+        else:
+            # Create alpha channel from luminance
+            if len(shifted_stars.shape) == 3:
+                luminance = np.max(shifted_stars[:, :, :3], axis=2)
+            else:
+                luminance = shifted_stars
+            stars_rgba[:, :, 3] = np.where(luminance > 0, 255, 0)
+
+        # Convert to PIL Image
+        stars_pil = Image.fromarray(stars_rgba, 'RGBA')
+
+        # Apply blur if requested
+        if blur_stars:
+            stars_pil = stars_pil.filter(ImageFilter.GaussianBlur(0.5))
+
+        # Create a new blank image with the background
+        frame = bg_pil.copy()
+
+        # Paste stars with transparency
+        frame.paste(stars_pil, (0, 0), stars_pil)
+
+        frames.append(frame)
+
+    logger.info(f"Generated {len(frames)} animation frames")
+    return frames
+
+
 def create_background_from_starless(starless_image, original_shape):
     """
     Create a suitable background image from a starless image
@@ -1096,6 +1325,49 @@ def save_gif(frames, output_path, duration=100, loop=0, optimize=True):
 
 
 def parse_arguments():
+    """Parse command line arguments"""
+    parser = argparse.ArgumentParser(description='Create a parallax animation from star distance data')
+
+    # Input files
+    parser.add_argument('csv_file', help='Path to CSV file with star coordinates and distances')
+    parser.add_argument('--image', '-i', required=True, help='Path to original image (FITS or TIFF/PNG)')
+    parser.add_argument('--starless', '-s', help='Path to starless version of the image (optional)')
+
+    # Output options
+    parser.add_argument('--output', '-o', help='Output GIF file path', default='parallax_animation.gif')
+
+    # Animation parameters
+    parser.add_argument('--frames', '-f', type=int, help='Number of frames', default=30)
+    parser.add_argument('--amplitude', '-a', type=float, help='Maximum parallax displacement in pixels', default=10.0)
+    parser.add_argument('--duration', '-d', type=int, help='Frame duration in milliseconds', default=100)
+    parser.add_argument('--direction', choices=['horizontal', 'vertical', 'both'],
+                        help='Direction of parallax motion', default='horizontal')
+
+    # Star extraction options
+    parser.add_argument('--threshold', '-t', type=float, help='Star detection threshold factor', default=2.0)
+    parser.add_argument('--min-size', type=int, help='Minimum star size in pixels', default=3)
+    parser.add_argument('--no-blur', action='store_true', help='Disable star blurring')
+
+    # Enhanced parallax options
+    parser.add_argument('--parallax-mode', choices=['logarithmic', 'inverse', 'power', 'linear', 'enhanced'],
+                        help='Mode for scaling parallax with distance', default='enhanced')
+    parser.add_argument('--distance-threshold-percentile', type=float,
+                        help='Percentile for distance threshold (0-100)', default=75.0)
+    parser.add_argument('--enhancement-factor', type=float,
+                        help='Factor to enhance parallax for close stars (higher = more dramatic)', default=2.0)
+    parser.add_argument('--contrast', type=float,
+                        help='Contrast factor for parallax (for non-enhanced modes)', default=1.0)
+    parser.add_argument('--power', type=float,
+                        help='Power factor for power scaling mode', default=2.0)
+
+    # Debug options
+    parser.add_argument('--debug', action='store_true', help='Enable debug logging')
+    parser.add_argument('--save-stars', help='Save extracted stars image to this path')
+
+    return parser.parse_args()
+
+
+def parse_arguments_multiple_scaling():
     """Parse command line arguments"""
     parser = argparse.ArgumentParser(description='Create a parallax animation from star distance data')
 
@@ -1209,15 +1481,31 @@ def main():
                 Image.fromarray(stars_only.astype(np.uint8), 'L').save(args.save_stars)
 
         # Generate animation frames
-        frames = create_parallax_frames(
-            star_data=star_data,
-            original_image=original_data,
-            starless_image=starless_data,
-            num_frames=args.frames,
-            parallax_amplitude=args.amplitude,
-            direction=args.direction,
-            blur_stars=not args.no_blur
-        )
+        if args.parallax_mode == 'enhanced':
+            frames = create_parallax_frames_enhanced(
+                star_data=star_data,
+                original_image=original_data,
+                starless_image=starless_data,
+                num_frames=args.frames,
+                parallax_amplitude=args.amplitude,
+                direction=args.direction,
+                blur_stars=not args.no_blur,
+                threshold_percentile=args.distance_threshold_percentile,
+                enhancement_factor=args.enhancement_factor
+            )
+        else:
+            frames = create_parallax_frames(
+                star_data=star_data,
+                original_image=original_data,
+                starless_image=starless_data,
+                num_frames=args.frames,
+                parallax_amplitude=args.amplitude,
+                direction=args.direction,
+                blur_stars=not args.no_blur,
+                parallax_mode=args.parallax_mode,
+                contrast_factor=args.contrast,
+                power=args.power
+            )
 
         # Save as GIF
         save_gif(frames, args.output, duration=args.duration)
