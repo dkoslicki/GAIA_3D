@@ -22,6 +22,7 @@ import tempfile
 import shutil
 import numpy as np
 import pandas as pd
+import astropy
 from astropy.io import fits
 from astropy.wcs import WCS
 from astropy.coordinates import SkyCoord
@@ -184,7 +185,7 @@ def plate_solve_with_astap(fits_path, astap_path=None):
             with fits.open(wcs_fits_path) as hdul:
                 header = hdul[0].header
                 try:
-                    wcs = WCS(header)
+                    wcs = WCS(header, naxis=2)
                     # Test the WCS to see if it's valid
                     _ = wcs.pixel_to_world(0, 0)
                     logger.info("Successfully extracted WCS from ASTAP solution")
@@ -368,10 +369,12 @@ def process_fits_file(fits_path, astap_path=None):
 
             # Try to get WCS from the header first
             try:
-                wcs = WCS(header)
+                wcs = WCS(header, naxis=2)
                 # Check if the WCS is valid by converting a test point
                 test_coord = wcs.pixel_to_world(0, 0)
-                test_coord = SkyCoord(ra=test_coord[0], dec=test_coord[1], frame="icrs")
+                if type(test_coord) != astropy.coordinates.sky_coordinate.SkyCoord:
+                    test_coord = SkyCoord(ra=test_coord[0], dec=test_coord[1], frame="icrs")
+
                 # This will raise an exception if the conversion fails
                 _ = test_coord.ra.degree
                 _ = test_coord.dec.degree
@@ -404,7 +407,8 @@ def process_fits_file(fits_path, astap_path=None):
         center_x = image_data.shape[1] / 2
         center_y = image_data.shape[0] / 2
         center_coord = wcs.pixel_to_world(center_x, center_y)
-        center_coord = SkyCoord(ra=center_coord[0], dec=center_coord[1], frame="icrs")
+        if type(center_coord) != astropy.coordinates.sky_coordinate.SkyCoord:
+            center_coord = SkyCoord(ra=center_coord[0], dec=center_coord[1], frame="icrs")
 
         # Ensure center_coord is a proper SkyCoord object
         if not isinstance(center_coord, SkyCoord):

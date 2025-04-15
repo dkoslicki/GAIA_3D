@@ -505,6 +505,10 @@ def create_shifted_star_image(stars_image, star_regions, offset_factor, directio
     else:
         shifted_stars = gaussian_filter(shifted_stars, sigma=0.5)
 
+    # save the parallax factors to a CSV file named "temp"
+
+    #np.save("temp.npy", shifted_stars)
+
     return shifted_stars
 
 

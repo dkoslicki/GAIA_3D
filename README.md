@@ -15,6 +15,16 @@ then run something like:
 ```bash
 python .\src\get_coordinates_astrometry_net.py --wcs .\data\wcs.fits --fits .\data\new-image.fits --image-radec .\data\image-radec.fits --axy .\data\axy.fits --output .\data\test_astrometry.csv -v --viz-output .\data\test_astrometry.png -d
 ```
+Taking the Astrometry.net route is straightforward, but does not give you that many found stars (max of 500 or 
+something like that). If you want more stars, then:
+
+1. Solve with Astrometry.net
+2. Download the `new-image.fits` file (essentially: convert your TIFF/JPEG to a FITS file)
+3. Solve in ASTAP
+4. Update the FITS Header
+5. Then run the `get_coordinates_claude.py`
+
+
 
 Then you can make a GIF with something like:
 ```bash
@@ -24,3 +34,4 @@ or
 ```bash
  python .\src\make_gif_claude.py data/test_astrometry.csv -i data/pinwheel_temp-HaRGB_2-csc-crop-St.tiff -s data/pinwheel_temp-HaRGB_2-csc-crop-St-Starless.tiff -o data/test_astrometry.gif --parallax-mode power --power 3.0 --contrast 2.5
 ```
+
