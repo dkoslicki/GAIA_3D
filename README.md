@@ -59,4 +59,8 @@ or
 ```bash
  python .\src\make_gif_claude.py data/test_astrometry.csv -i data/pinwheel_temp-HaRGB_2-csc-crop-St.tiff -s data/pinwheel_temp-HaRGB_2-csc-crop-St-Starless.tiff -o data/test_astrometry.gif --parallax-mode power --power 3.0 --contrast 2.5
 ```
+or the new and improved version:
+```bash
+python .\src\make_gif_claude_v2_compression.py data/test_distances_on_astap_image.fits.csv -i data/pinwheel_temp-HaRGB_2-csc-crop-St.tiff -s data/pinwheel_temp-HaRGB_2-csc-crop-St-Starless.tiff -o data/test_v2_compression_medium_lossy_80_enhance_5.gif --parallax-mode enhanced --amplitude 100 --duration 50 --frames 30 --enhancement-factor 5
+```
 
