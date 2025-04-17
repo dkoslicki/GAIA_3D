@@ -281,6 +281,8 @@ def extract_stars(image_data, starless_data=None, threshold_factor=2.0, min_size
             stars_mask = ndimage.binary_opening(stars_mask, structure=np.ones((2, 2)))
 
     else:
+        logger.error("The auto-star finding method is not available. Please provide a starless image so a mask can be extracted.")
+        raise
         # Method 2: Direct threshold detection
         logger.info("Using direct threshold detection for stars")
 
