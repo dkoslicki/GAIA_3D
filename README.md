@@ -31,9 +31,12 @@ After installation of required packages, you will need to:
 1. Solve with ASTAP manually (code exists to call ASTAP, but it's not working currently)
 2. Run with something like:
 ```bash
-python .\src\get_coordinates_claude.py .\data\pinwheel_temp_top_90p-Blue-session_1.fits -o .\data\test_stack.csv -v --viz-output .\data\test_viz_stack.png -d --astap "C:\Program Files\astap\astap.exe"
+python .\src\fits_to_gaia.py "E:\Dropbox\Astrophotography\Pinwheel galaxy\March 2025\pinwheel_temp-HaRGB_2-csc-crop-St-Starless.fits" -o "E:\Dropbox\Astrophotography\Pinwheel galaxy\March 2025\distances_updated.csv" -v --viz-output "E:\Dropbox\Astrophotography\Pinwheel galaxy\March 2025\distance_viz.png" -d --astap "C:\Program Files\astap\astap.exe"
 ```
-This will create a CSV file with the coordinates of the stars in the image, and a PNG file with the visualization of the stars in the image. 
+*PLEASE NOTE* that the `--astap` flag is not working currently. You will need to run ASTAP manually and then update the FITS header with the WCS information.
+
+This script will create a CSV file with the coordinates of the stars in the image, and a PNG file with the 
+visualization of the stars in the image. 
 
 If you solve your image on Astrometry.net, download all the accessory files (eg. `wcs.fit`, `axy.fit`, etc.) and 
 then run something like:
@@ -41,26 +44,16 @@ then run something like:
 python .\src\get_coordinates_astrometry_net.py --wcs .\data\wcs.fits --fits .\data\new-image.fits --image-radec .\data\image-radec.fits --axy .\data\axy.fits --output .\data\test_astrometry.csv -v --viz-output .\data\test_astrometry.png -d
 ```
 Taking the Astrometry.net route is straightforward, but does not give you that many found stars (max of 500 or 
-something like that). If you want more stars, then:
+something like that). If you want more stars, then just run the `fits_to_gaia.py` script.
 
-1. Solve with Astrometry.net
-2. Download the `new-image.fits` file (essentially: convert your TIFF/JPEG to a FITS file)
-3. Solve in ASTAP
-4. Update the FITS Header
-5. Then run the `get_coordinates_claude.py`
-
-
+Next, you will need a starless image before making the visualization. I just use StarNet++ to do this, but you can 
+use whatever you would like.
 
 Then you can make a GIF with something like:
 ```bash
-python .\src\make_gif_claude.py .\data\test_astrometry.csv -i .\data\pinwheel_temp-HaRGB_2-csc-crop-St.tiff -s .\data\pinwheel_temp-HaRGB_2-csc-crop-St-Starless.tiff -o .\data\test_astrometry.gif --debug --save-stars .\data\test_astrometry_stars.png
+python .\src\create_visualization.py "E:\Dropbox\Astrophotography\Pinwheel galaxy\March 2025\distances_updated.csv" -i "E:\Dropbox\Astrophotography\Pinwheel galaxy\March 2025\pinwheel_temp-HaRGB_2-csc-crop-St-Starless.tif" -s "E:\Dropbox\Astrophotography\Pinwheel galaxy\March 2025\pinwheel_temp-HaRGB_2-csc-crop-St-Starless-no-stars.tif" -o "E:\Dropbox\Astrophotography\Pinwheel galaxy\March 2025\pinwheel_star_parallax_updated.gif" --parallax-mode enhanced --amplitude 100 --duration 50 --frames 30 --enhancement-factor 5
 ```
-or
-```bash
- python .\src\make_gif_claude.py data/test_astrometry.csv -i data/pinwheel_temp-HaRGB_2-csc-crop-St.tiff -s data/pinwheel_temp-HaRGB_2-csc-crop-St-Starless.tiff -o data/test_astrometry.gif --parallax-mode power --power 3.0 --contrast 2.5
-```
-or the new and improved version:
-```bash
-python .\src\make_gif_claude_v2_compression.py data/test_distances_on_astap_image.fits.csv -i data/pinwheel_temp-HaRGB_2-csc-crop-St.tiff -s data/pinwheel_temp-HaRGB_2-csc-crop-St-Starless.tiff -o data/test_v2_compression_medium_lossy_80_enhance_5.gif --parallax-mode enhanced --amplitude 100 --duration 50 --frames 30 --enhancement-factor 5
-```
+
+I've found that funky things happen when making the visualization with FITS files, or mixing file formats (PNG and 
+TIF, FITS and TIF, etc.). I recommend using TIF files when creating the visualization.
 
